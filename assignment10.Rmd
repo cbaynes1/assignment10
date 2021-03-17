@@ -1,0 +1,269 @@
+---
+title: "CSDE 502 Winter 2021, Assignment 9"
+author: "Colin Baynes (cbaynes@uw.edu)"
+output:
+  bookdown::html_document2:
+    number_sections: yes
+    self_contained: yes
+    code_folding: hide
+    toc: yes
+    toc_float:
+      collapsed: yes
+      smooth_scroll: no
+  pdf_document:
+    number_sections: yes
+    toc: yes
+    fig_cap: yes
+    keep_tex: yes
+  html_document:
+    toc: yes
+    df_print: paged
+urlcolor: blue
+---
+
+# Introduction
+
+Senegal is a low-income country situated on the Atlantic coast of West Africa south of Kenya and north of Mozambique. In 2020, its population was approximately 16.7 million. According to the World Bank, the country has experienced remarkable social and economic development since 1990. Its gross domestic produce increased from 7.3 billion to 23.9 billion as of 2020, school enrollments is currently 1.5 times higher than it was three decades, and life expectancy has increased by 10 years. For more information on Senegal's development visit [World Bank Data](https://data.worldbank.org/country/senegal). A particularly impressive achievement, has been childhood mortality reduction during this period, from 140 per 1,000 live births in 1990 to 45 deaths per 1,000 live births in 2019. During the same period, Senegal became increasingly urban. Whereas fewer than a quarter of the country's population in 1990 live in urban areas this increased to 49 percent in 2019.  Given the advantages of urban settings in terms of access to health services, it is sensible to link the improvements in child mortality reduction, at least in part, to the migration out of rural and remote settings where access is poor. Therefore, it is important to direct attention toward  trends in rural areas of the country to obtain a more nuanced and balanced perspectives on childhood mortality in the country.  The analysis we present in this paper aims at filling this knowledge gap. We have obtained prospective data from rural, landlocked districts of Senegal, Bandafassi and Thieba Mbour, that cover the period of 2000 to 2015 and we use them to answer the following questions: (1) What were the trends of childhood mortality change in the two districts, respectively between 2000 and 2015? (2) What are the socio-demographic determinants of childhood mortality, and have these changed over time?
+
+# Methods
+
+## Data
+
+The data for this study come from the Bandafassi and Thieba Mbour Health and Demographic Surveillance Systems (HDSS) managed by Center for Population Studies at Cheikh Antoine Diop University in the city of Thies. Bandafassi and Thieba Mbour are adjacent landlocked districts in the rural Sahelian area of the country that border Mali. In 2011, the sentinel areas of the Bandafassi HDSS encompassed 68 communities that collectively included approximately 238,000. The Thieba Mbour HDSS observed a sentinel population of approximately 124,000 in 33 communities. Between 2000 and 2015, both HDSS collected data continuously in their respective surveillance sites throughout the year, with all households visited every four months. Information collected includes data compiled through periodic censuses undertaken every 1-2 years to enumerate old and new households and communities as they arose in the sentinel areas over time, and routine core updates, both of which included data on socio-demographic characteristics of household members and episodes of birth, death, in- and out-migration episodes. For this analysis, our focus is on the children of mothers (n=) that were born in 1981-1984, who were between the ages of 15-18 during at the start of the follow up surveys that tracked their reproductive event histories and the survival of their children from 2000 until 2015. Altogether, the data in this sample comprise of 25,755 children and 15,289 mothers.
+
+## Analysis
+
+To answer our first research question we calculate the childhood mortality rates using person-time for the periods of 2000-2004, 2005-2009 and 2010-2015. We will compare these rates across four subgroups of children within and across the time periods: (1) children age 2-5, (2) children age 1-2, infants aged 1-12 months and (3) newborns age 0-1 month. To answer our second question, we will fit a Cox proportional hazards model to assess the proposition that household wealth and maternal education have indeed influenced the survival of children in the population:
+
+$$
+h(t|z, x) = h_{0}(t)e^{β_1x_1ij...β _Kx_Kij}
+$$
+Where $h(t|z)$ is the hazards of childhood mortality given children's exposure to our predictor, $x_1$, $h_0(t)$ is the baseline hazard, which represents the probability of the child, *i* of mother *j* dying before any exposure to *X*, $β_1$ is the coefficient for the ratio of the hazards comparing child, *i* to mother *j* exposed to $x_1$ to those that were not, $x_k$ is the value of an additional covariates in our model as they apply to child, *i* of mother *j* and $β_k$ are coefficients for the ratio of hazards associated with them. The additional covariates that we include in the model are mothers' age at delivery, marital status, whether the child was born during a multiple birth (i.e., twins, triplets), their year of birth, child sex and birth order (i.e., first born, second born, etc.). 
+
+# Results
+
+
+```{r, include =F}
+setwd('C:/Users/Cbayn/Dropbox/CSDE 502/Assignment 10')
+df.iii<-read.csv("df.iii.csv", header=T)
+df<-subset(df.iii, birth_year_of_mother>=1980 & birth_year_of_mother<=1984)
+df<-subset(df, birth_year!=2016)
+
+#install.packages("captioner")
+library(captioner)
+table_nums <- captioner(prefix = "Table")
+figure_nums <- captioner(prefix = "Figure")
+# for having DIV tags
+knitr::knit_hooks$set(class = function(before, options, envir) {
+  if(before){
+    sprintf("<div class = '%s'>", options$class)
+  }else{
+    "</div>"
+  }
+})
+library(kableExtra)
+library(dplyr)
+library(ggplot2)
+library(survival)
+library(gtsummary)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+```
+We first conducted a basic descriptive analysis to understand relevant characteristics and trends with respect to childhood mortality in our study population during the period. See `r table_nums(name = "tcap0", display = "cite")`
+
+```{r, include=F}
+#no women represented in sample (mothers)
+length(unique(df$mother_id))
+#create death variables for categories of children
+df$newb_death[df$child_duration<=1 & df$child_death_event==1]<-1 
+df$newb_death[is.na(df$newb_death)]<-0 #neonatal mortality - all deaths among children that were in the population for one month or less.
+table(df$newb_death)
+df$postnewb_death[df$child_duration>1 & df$child_duration<13 & df$child_death_event==1]<-1
+df$postnewb_death[is.na(df$postnewb_death)]<-0
+table(df$postnewb_death) #postneonatal death: any death of a child that had been in the pop for more than one month and less than 13 months (i.e. infant mortality minus neonatal mortality)
+df$infant_death[df$newb_death==1 | df$postnewb_death==1]<-1
+df$infant_death[is.na(df$infant_death)]<-0
+table(df$infant_death)
+df$one_to_two_death[df$child_duration>12 & df$child_duration<25 & df$child_death_event==1]<-1
+df$one_to_two_death[is.na(df$one_to_two_death)]<-0
+table(df$one_to_two_death)
+df$toddler_death[df$child_duration>24 & df$child_duration<=60 & df$child_death_event==1]<-1
+df$toddler_death[is.na(df$toddler_death)]<-0
+table(df$toddler_death) # toddler_death: death of child between ages of 2 and 5
+df$child_death[df$child_duration>12 & df$child_duration<=60 & df$child_death_event==1]<-1
+df$child_death[is.na(df$child_death)]<-0
+table(df$child_death) # child death: combination of one_to_two_death and toddler_death
+#set child durations that are 0 to 1
+df$child_duration[df$child_duration==0]<-1
+#underfive duration
+df$underfive_duration<-df$child_duration
+df$underfive_duration[df$underfive_duration>60]<-60
+table(df$underfive_duration)
+#infant duration 
+df$infant_duration<-df$child_duration
+df$infant_duration[df$infant_duration>12]<-12
+table(df$infant_duration)
+#newborn duration 
+df$newborn_duration<-df$child_duration
+df$newborn_duration[df$newborn_duration>1]<-1
+table(df$newborn_duration)
+#postnewborn duration
+df$postnewb_duration <- df$infant_duration-df$newborn_duration
+#child duration
+df$twelve_sixty_duration <- (df$child_duration - df$infant_duration)
+#one_to_two_duration
+df$onetwo_duration<-df$underfive_duration
+df$onetwo_duration[df$onetwo_duration>24]<-24
+table(df$onetwo_duration)
+#toddler duration
+df$toddler_duration <- df$underfive_duration-df$onetwo_duration
+#convert to person-years
+df$underfive_duration_year<-(df$underfive_duration/12)
+df$infant_duration_year<-(df$infant_duration/12)
+df$twelve_sixty_duration_year<-(df$twelve_sixty_duration/12)
+df$onetwo_duration_year<-(df$onetwo_duration/12)
+df$postnewb_duration_year<-(df$postnewb_duration/12)
+df$toddler_duration_year<-(df$toddler_duration/12)
+#create count var
+df$X.1[df$X.1>=0]<-1
+```
+
+```{r,echo=F}
+df$ses_num[df$ses=="Fifth"]<-5
+df$ses_num[df$ses=="Fourth"]<-4
+df$ses_num[df$ses=="Third"]<-3
+df$ses_num[df$ses=="Second"]<-2
+df$ses_num[df$ses=="First"]<-1
+df$year_group[df$birth_year<2005]<-"2000-2004"
+df$year_group[df$birth_year>=2005 & df$birth_year<2010]<-"2005-2009"
+df$year_group[df$birth_year>=2010]<-"2010-15"
+
+agg1 <- aggregate(cbind(X.1, newb_death, postnewb_death, infant_death, one_to_two_death, toddler_death, child_death)~year_group, 
+                    data = df, FUN = "sum", na.rm = T)
+agg2 <- aggregate(cbind(ses_num, mother_age_birth, mother_educ)~year_group, 
+                    data = df, FUN = "mean", na.rm = T)
+agg.comb <-cbind(agg1, agg2)
+agg.comb <- subset(agg.comb, select = -c(year_group))
+agg.comb <-agg.comb[, c(8, 1, 2, 3, 4, 5, 6, 7, 9, 10, 11)]
+colnames(agg.comb) <- c("Years", "Births", "Newborn Deaths", "Postneonatal Deaths", "Infant Deaths", "Early Childhood Deaths", "Late Childhood Deaths", "Child Deaths", "Household Wealth Ranking (mean)", "Mothers' Age at Birth (mean)", "Mothers years of education (mean)")
+agg.comb %>%
+  kbl(caption = "Background Childhood Mortality and Socio-Demographic Characteristics of Mothers, Senegal, 2000-2015", digits = 1) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed")) %>%
+  footnote(general = "Newborn  = < 1 month, Posteneonate = 2-12 months, Infant = 1-12 months, Early Childhood = 12-23 months, Late Childhood = 24-60 months, Child = 12-60 months,
+           Household Wealth Ranking is a 1-5 scale where 1 is the lowest")
+```
+Table 1 illustrates a complex situation regarding childhood mortality in our study districts. Although, mortality seems to have declined during the post-infant period, it seems to have stagnated during the infant period. What's more the number of newborn deaths actually seems to have increased. Overall, there seems to be no major difference in socio-economic status and education attainment.  The increasing mean age at birth is an artifact of the analytic decision to focus on one birth cohort of mothers that were 15-18 in 2000 and aged together over time. See `r table_nums(name = "tcap1", display = "cite")` which presents the same trend but in rates per 1000 person years for each category of underfive-year-old.
+
+```{r, echo=F}
+#aggregate data set and create rates
+agg2 <- aggregate(cbind(newb_death, postnewb_death, infant_death, one_to_two_death, toddler_death, child_death, newborn_duration, postnewb_duration_year, infant_duration_year, onetwo_duration_year, toddler_duration_year, twelve_sixty_duration_year)~year_group, 
+                    data = df, FUN = "sum", na.rm = T)
+agg2$newb_death_rate <- (agg2$newb_death/agg2$newborn_duration)
+agg2$newb_death_rate <- agg2$newb_death_rate*1000
+agg2$postnewb_death_rate <- (agg2$postnewb_death/agg2$postnewb_duration_year)
+agg2$postnewb_death_rate <- agg2$postnewb_death_rate*1000
+agg2$infant_death_rate <- (agg2$infant_death/agg2$infant_duration_year)
+agg2$infant_death_rate <- agg2$infant_death_rate*1000
+agg2$one_to_two_death_rate <- (agg2$one_to_two_death/agg2$onetwo_duration_year)
+agg2$one_to_two_death_rate <- agg2$one_to_two_death_rate*1000
+agg2$toddler_death_rate <- (agg2$toddler_death/agg2$toddler_duration_year)
+agg2$toddler_death_rate <- agg2$toddler_death_rate*1000
+agg2$child_death_rate <- (agg2$child_death/agg2$twelve_sixty_duration_year)
+agg2$child_death_rate <- agg2$child_death_rate*1000
+#go long for plotting
+agg2.1 <- aggregate(cbind(newb_death, postnewb_death, infant_death, one_to_two_death, toddler_death, child_death, newborn_duration, postnewb_duration_year, infant_duration_year, onetwo_duration_year, toddler_duration_year, twelve_sixty_duration_year)~birth_year, 
+                    data = df, FUN = "sum", na.rm = T)
+agg2.1$newb_death_rate <- (agg2.1$newb_death/agg2.1$newborn_duration)
+agg2.1$newb_death_rate <- agg2.1$newb_death_rate*1000
+agg2.1$postnewb_death_rate <- (agg2.1$postnewb_death/agg2.1$postnewb_duration_year)
+agg2.1$postnewb_death_rate <- agg2.1$postnewb_death_rate*1000
+agg2.1$infant_death_rate <- (agg2.1$infant_death/agg2.1$infant_duration_year)
+agg2.1$infant_death_rate <- agg2.1$infant_death_rate*1000
+agg2.1$one_to_two_death_rate <- (agg2.1$one_to_two_death/agg2.1$onetwo_duration_year)
+agg2.1$one_to_two_death_rate <- agg2.1$one_to_two_death_rate*1000
+agg2.1$toddler_death_rate <- (agg2.1$toddler_death/agg2.1$toddler_duration_year)
+agg2.1$toddler_death_rate <- agg2.1$toddler_death_rate*1000
+agg2.1$child_death_rate <- (agg2.1$child_death/agg2.1$twelve_sixty_duration_year)
+agg2.1$child_death_rate <- agg2.1$child_death_rate*1000
+agg3 <- subset(agg2.1, select = c(birth_year, newb_death_rate, postnewb_death_rate, one_to_two_death_rate, toddler_death_rate))
+library(tidyr)
+agg3.long<- agg3 %>%
+                    gather(mortality_type, mortality_rate, newb_death_rate:toddler_death_rate)
+agg3.long$mortality_type[agg3.long$mortality_type=="newb_death_rate"]<-"Newborn mortality"
+agg3.long$mortality_type[agg3.long$mortality_type=="postnewb_death_rate"]<-"Postneonatal mortality"
+agg3.long$mortality_type[agg3.long$mortality_type=="one_to_two_death_rate"]<-"Early childhood mortality"
+agg3.long$mortality_type[agg3.long$mortality_type=="toddler_death_rate"]<-"Late childhood mortality"
+```
+```{r, echo=F}
+#table
+agg2 <- subset(agg2, select = -c(newb_death, postnewb_death, infant_death, one_to_two_death, toddler_death, child_death, infant_death_rate, infant_duration_year, twelve_sixty_duration_year, child_death_rate))
+colnames(agg2) <- c("Years","PY Newborns", "PY Postneonates", "PY 1-2 Year-olds", "PY Toddlers", "Newborn Mortality Rate", "Postneonatal Mortality Rate", "Early Childhood Mortality Rate", "Late Childhood Mortality Rate")
+agg2 %>%
+  kbl(caption = "Childhood Person-time and Mortalty Rates, Bandafassi and Thieba Mbour, Senegal, 2000-2015", digits = 1) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed")) %>%
+  footnote(general = "Newborn  = < 1 month, Posteneonate = 2-12 months, Infant = 1-12 months, Early Childhood = 12-23 months, Late Childhood = 24-60 months
+           PY = Person-Years")
+```
+In order to give a more detailed picture of patterns between 2000-2015, we provide the figure below, which depicts childhood mortality trends by underfive year-old age group by each year. See _`r figure_nums(name = "Figure 1", display = "cite")`_.
+
+```{r, warning=F,echo=F}
+#plot trends
+g1<-ggplot(agg3.long, aes(x=birth_year, y=mortality_rate, group = mortality_type)) + 
+  geom_point(aes(colour=mortality_type)) +
+  geom_line(aes(colour=mortality_type)) +   
+  labs(title="Figure 1: Childhood mortality rates by age group", subtitle="108,915 children born to 68,390 mothers in Bandafassi and Thieba Mbour, Senegal, 2000-2015", 
+       y="Deaths per 1,000 person-years", x="Year of children's birth", caption="Early childhood = 12-23 months, late childhood = 24-60 months, 
+       newborn = 1st month of life, postneonatal = months 2-12") + theme(legend.position = "bottom") +theme(legend.title=element_blank()) 
+g1 +xlim(2000, 2015) + ylim(0, 75)
+ggsave(filename="g1.png", plot=g1)
+```
+Figure 1 corroborates with out analysis from the above Tables that break down mortality trends by blocks of years.  We see declining trends in all types of childhood mortality, except newborn mortality.
+
+To answer our second research question, we fit a multivariate Cox Proportional hazards model to assess which of several socio-demographic characteristics related to children's mother or household might affect their risk of death during the underfive period. As mentioned above, the key covariates in our model are household wealth status (1-5 scale, 1=lowest), child sex, year of birth, birth order and whether they were part of a multiple birth, and mothers' educational attainment, mothers' age at birth and marital status. See `r table_nums(name = "tcap2", display = "cite")`.
+
+_`r table_nums(name = "tcap2", caption = "Multivariate Cox Proportional Hazards Regression Model Results")`_
+
+```{r, include =F}
+#creating new child sex var that is numeric so that it can be modeled properly.
+df$sex_child[df$child_sex=="M"]<-1#1=male
+df$sex_child[df$child_sex=="F"]<-2#2=female
+df$sex_child[is.na(df$sex_child)]<-2
+table(df$sex_child)
+df$child_sex[df$child_sex!="M"]<-"Female"
+df$child_sex[df$child_sex=="M"]<-"Male"
+
+summary(df$mother_age_birth)
+df$mother_age_birth_cat[df$mother_age_birth<20]<-"<20 years"
+df$mother_age_birth_cat[df$mother_age_birth>=20 & df$mother_age_birth<25]<-"20-24 years"
+df$mother_age_birth_cat[df$mother_age_birth>=25 & df$mother_age_birth<30]<-"25-29 years"
+df$mother_age_birth_cat[df$mother_age_birth>=30 & df$mother_age_birth<35]<-"30-34 years"
+df$mother_age_birth_cat[df$mother_age_birth>=35]<-"35 + years"
+
+df$mother_educ_cat[df$mother_educ==0 | df$mother_educ==99]<-"None"
+df$mother_educ_cat[df$mother_educ==88]<-"None"
+df$mother_educ_cat[is.na(df$mother_educ)]<-"None"
+df$mother_educ_cat[df$mother_educ>0 & df$mother_educ<=6]<-"Primary"
+df$mother_educ_cat[df$mother_educ>6 & df$mother_educ< 88]<-"Secondary and higher"
+```
+```{r, include=F}
+cph1<- coxph(formula = Surv(time = child_duration, event = child_death) ~ ses + child_sex + mother_age_birth_cat + mother_educ_cat + pre_marital_birth + mult_birth + birth_year + birth_order, data = df) 
+summary(cph1)
+```
+```{r, echo=F}
+library(gtsummary)
+tbl_regression(cph1, exponentiate = TRUE) %>%
+  bold_p(t = 0.05) %>%
+  italicize_levels()
+```
+
+As observed in Table 3, our mutltivariate Cox proportional hazard model detected a few socio-demographic characteristics that were signficantly associated with differences in the risk of all under-five year-old mortality. Compared to children in the  highest wealth quintile, those in the lowest were associated with a mortality risk that was 1.38 times higher (95% CI: 1.00, 1.90). Conversely, compared to children of mothers that had not received any education, being born to mothers that had experienced at least some secondary education was associated with a mortality risk that was 0.65 times lower (95% CI: 0.52, 0.81). Compared to children of mothers that were married at the time of their birth, for those that were not having a single mother at the time of birth was associated with a mortality risk that was 1.35 times higher (95% CI: 1.07, 1.69). Finally, our model demonstrates that a for every passing year between 2000-2015, on average, compared to children born the year before, those born one year after had a 0.91 times lower risk of childhood mortality (95% CI: 0.86, 0.96).
+
+# Discussion
+
+Our findings lend support to earlier conclusions from the abundant evidence base on social determinants of childhood mortality, saliently that children from poorer households, with less parental education attainment with fewer sources of adult support are at greater risk of dying before turning five years-old. Our finding that the risk childhood mortality declined with time between 2000 and 2015 is not surprising either given Senegal's relatively impressive development achievements during that time period.  
+
+# Conclusion
+
+Public sector health authorities, donors and implementation agencies should reinvigorate efforts aimed at addressing the social determinants of child mortality in Senegal.
+
+
+
